@@ -99,9 +99,12 @@ See `AppendPng.ps1`
 | ---- | ----------------------------------------------------- | ------------- |
 | 1    | Copy `AppendPng.ps1` to `C:\Tools`                    | Administrator |
 | 2    | Create target directory (e.g., `C:\Images\Incoming`)  | Administrator |
-| 3    | Create Scheduled Task via provided PowerShell command | Administrator |
-| 4    | Validate execution via manual run                     | Administrator |
-| 5    | Verify log file entries                               | Administrator |
+| 3    | Copy `Schedule-AppendPng.ps1` to `C:\Tools`           | Administrator |
+| 4    | Create Scheduled Task via provided PowerShell command | Administrator |
+| 5    | Validate execution via manual run                     | Administrator |
+| 6    | Verify log file entries                               | Administrator |
+
+step 3 command: `powershell.exe -ExecutionPolicy Bypass -File "C:\Tools\Schedule-AppendPng.ps1" -Folder "C:\Target\Folder"`
 
 ## 7. Security Considerations
 - Execution policy is set to Bypass for the scheduled task only, not system-wide.

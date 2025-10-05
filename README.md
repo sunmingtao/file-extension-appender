@@ -154,8 +154,7 @@ or view the tasks in Task Scheduler
 - The PowerShell script runs under the specified user’s context.
 - Use /RU and /RP with schtasks to supply credentials if running unattended.
 - Avoid storing passwords in plain text if possible. Use a service account if feasible.
-
-Script runs with ExecutionPolicy Bypass, but only for this command invocation—system policy remains intact.
+- Script runs with ExecutionPolicy Bypass, but only for this command invocation—system policy remains intact.
 
 ## 10. Maintenance and Troubleshooting
 

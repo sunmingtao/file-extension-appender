@@ -43,7 +43,7 @@ The system consists of:
 
    Plain-text log stored in the target directory to record all rename actions and errors.
 
-## 4. System Overview
+## 4. Architecture Diagram
 
 ```
  ┌────────────────────┐
@@ -71,80 +71,113 @@ The system consists of:
 
 ## 5. Technical Design
 
-### 5.1 Core Logic (PowerShell). 
+### 5.1 Core Logic (`AppendPng.ps1`)
 
-See `AppendPng.ps1`
+1. Enumerates all files in the target folder.  
+2. Checks whether the file has an extension.  
+3. If not, renames it by appending `.png`.  
+4. Logs each rename action or error to `append-png.log`.
 
 ### 5.2 Scheduled Task Definition
 
-- Task Name: Append PNG to Extensionless Files
-- Trigger: Every 5 minutes; repeat indefinitely; also runs at startup.
-- Action:
-  ```
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Tools\AppendPng.ps1" -Folder "C:\Target\Folder"
-  ```
-- Run Level: Highest privileges.
-- Security: “Run whether user is logged on or not.”
-- Logon Type: Password stored securely by Windows Credential Manager.
+Two scheduled tasks are created for reliability across Windows versions:
 
-### 5.3 Folder Permissions
+| Task Name | Purpose | Schedule | Action | Run Level |
+|------------|----------|-----------|----------|------------|
+| **Append PNG - Every5Min** | Renames files every 5 minutes | Every 5 minutes indefinitely | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Tools\AppendPng.ps1" -Folder "C:\Target\Folder"` | Highest |
+| **Append PNG - AtStartup** | Ensures immediate check after reboot | At system startup | Same as above | Highest |
 
-- The script executes under the specified service account.
-- Read/Write access is required on the target folder for rename and log creation.
-- Logging file permissions inherit from the folder ACL.
+**Security:**
+- Run whether user is logged on or not if you want unattended operation.
+- For OneDrive or user-profile folders, the task should run under your user credentials (`/RU` and `/RP`).
+
 
 ## 6. Deployment Plan
 
-| Step | Description                                           | Responsible   |
-| ---- | ----------------------------------------------------- | ------------- |
-| 1    | Copy `AppendPng.ps1` to `C:\Tools`                    | Administrator |
-| 2    | Create target directory (e.g., `C:\Images\Incoming`)  | Administrator |
-| 3    | Copy `Schedule-AppendPng.ps1` to `C:\Tools`           | Administrator |
-| 4    | Create Scheduled Task via provided PowerShell command | Administrator |
-| 5    | Validate execution via manual run                     | Administrator |
-| 6    | Verify log file entries                               | Administrator |
+### Step 1 — Place Scripts
+- Save both scripts in `C:\Tools\`:
+  - `C:\Tools\AppendPng.ps1`
+  - `C:\Tools\Schedule-AppendPng.ps1` (optional helper)
 
-step 4 command: `powershell.exe -ExecutionPolicy Bypass -File "C:\Tools\Schedule-AppendPng.ps1" -Folder "C:\Target\Folder"`
+### Step 2 — Run PowerShell as Administrator
 
-## 7. Security Considerations
-- Execution policy is set to Bypass for the scheduled task only, not system-wide.
-- Script requires no internet connectivity and does not modify registry or system files.
-- Logging avoids sensitive data and writes only to a known directory.
-- Least-privilege principle: ideally runs as a non-administrative service account with folder-level write permission.
-- Digital signing of AppendPng.ps1 (optional) is recommended in managed environments.
+### Step 3 — (Optional) Set Execution Policy
+If not already set:
+```powershell Set-ExecutionPolicy -Scope CurrentUser RemoteSigned```
 
-## 8. Logging and Error Handling
+### Step 4 — Create Scheduled Tasks
 
-- Log entries are timestamped (ISO 8601 format).
-- Both successes and failures are recorded.
-- Typical log lines:
-```
-2025-10-04T13:05:12.102 RENAMED "IMG_001" -> "IMG_001.png"
-2025-10-04T13:10:15.887 FAILED "TEMPFILE": The process cannot access the file because it is being used by another process.
-```
-- Old logs can be rotated monthly using a simple scheduled archive script.
-
-## 9. Testing and Validation
+#### Option A — Manual commands (recommended, simple)
 
 ```
-| Test ID | Description                               | Expected Result                              |
-| ------- | ----------------------------------------- | -------------------------------------------- |
-| T1      | Place `testfile` (no extension) in folder | Renamed to `testfile.png`                    |
-| T2      | Place `testfile.png`                      | Skipped, log entry indicates skip            |
-| T3      | Place multiple duplicates (`a`, `a`, `a`) | Renamed to `a.png`, `a (1).png`, `a (2).png` |
-| T4      | File locked during run                    | Error logged, retried on next cycle          |
-| T5      | Reboot system                             | Task re-triggers and runs automatically      |
+$Folder = "C:\Users\jacky\OneDrive\文档"
+$Action = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Tools\AppendPng.ps1" -Folder "' + $Folder + '"'
+
+schtasks /Create /TN "Append PNG - Every5Min" /SC MINUTE /MO 5 /TR "$Action" /RL HIGHEST
+schtasks /Create /TN "Append PNG - AtStartup" /SC ONSTART /TR "$Action" /RL HIGHEST
+```
+#### Option B — Using the helper script
+
+```powershell.exe -ExecutionPolicy Bypass -File "C:\Tools\Schedule-AppendPng.ps1" -Folder "C:\Users\jacky\OneDrive\文档"```
+
+### Step 5 - Verify the task
+
+```
+schtasks /Query /TN "Append PNG - Every5Min"
+schtasks /Query /TN "Append PNG - AtStartup"
 ```
 
-## 10. Maintenance and Monitoring
+or view the tasks in Task Scheduler
 
-- Monitoring: Review append-png.log weekly for errors.
-- Updates: Script can be version-controlled in Git for traceability.
-- Task Verification:
+## 7. Testing and Validation
+
+| Test Case                                             | Expected Result                                    | Outcome |
+| ----------------------------------------------------- | -------------------------------------------------- | ------- |
+| 1. Place a file named `testfile` in the target folder | File is renamed to `testfile.png` within 5 minutes | ✅       |
+| 2. Restart the system                                 | Task runs at startup and renames files immediately | ✅       |
+| 3. File already has `.png` extension                  | No action taken                                    | ✅       |
+| 4. Folder path does not exist                         | Logged as error in `append-png.log`                | ✅       |
+| 5. File locked by another process                     | Skipped; retried on next cycle                     | ✅       |
+
+## 8. Logging and Monitoring
+
+- Log file: append-png.log in target folder
+- Contains timestamps, actions, and errors
+- Example:
 ```
-Get-ScheduledTask -TaskName "Append PNG to Extensionless Files" | Get-ScheduledTaskInfo
+2025-10-05 09:00:00 INFO  Renamed "img001" -> "img001.png"
+2025-10-05 09:05:00 ERROR Access denied for "tmpfile"
 ```
-- Change Control: Modifications (e.g., target folder or interval) must be approved and tested in staging before production rollout.
+
+## 9. Security Considerations
+
+- The PowerShell script runs under the specified user’s context.
+- Use /RU and /RP with schtasks to supply credentials if running unattended.
+- Avoid storing passwords in plain text if possible. Use a service account if feasible.
+
+Script runs with ExecutionPolicy Bypass, but only for this command invocation—system policy remains intact.
+
+## 10. Maintenance and Troubleshooting
+
+View Task Status
+
+```
+Get-ScheduledTaskInfo -TaskName "Append PNG - Every5Min"
+Get-ScheduledTaskInfo -TaskName "Append PNG - AtStartup"
+```
+
+Force Immediate Run
+
+```
+Start-ScheduledTask -TaskName "Append PNG - Every5Min"
+```
+
+Remove Tasks
+
+```
+schtasks /Delete /TN "Append PNG - Every5Min" /F
+schtasks /Delete /TN "Append PNG - AtStartup" /F
+```
 
 ## 11. Future Enhancements
 

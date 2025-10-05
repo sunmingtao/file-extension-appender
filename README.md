@@ -104,7 +104,7 @@ See `AppendPng.ps1`
 | 5    | Validate execution via manual run                     | Administrator |
 | 6    | Verify log file entries                               | Administrator |
 
-step 3 command: `powershell.exe -ExecutionPolicy Bypass -File "C:\Tools\Schedule-AppendPng.ps1" -Folder "C:\Target\Folder"`
+step 4 command: `powershell.exe -ExecutionPolicy Bypass -File "C:\Tools\Schedule-AppendPng.ps1" -Folder "C:\Target\Folder"`
 
 ## 7. Security Considerations
 - Execution policy is set to Bypass for the scheduled task only, not system-wide.

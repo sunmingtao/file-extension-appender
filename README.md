@@ -80,7 +80,9 @@ See `AppendPng.ps1`
 - Task Name: Append PNG to Extensionless Files
 - Trigger: Every 5 minutes; repeat indefinitely; also runs at startup.
 - Action:
+  ```
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Tools\AppendPng.ps1" -Folder "C:\Target\Folder"
+  ```
 - Run Level: Highest privileges.
 - Security: “Run whether user is logged on or not.”
 - Logon Type: Password stored securely by Windows Credential Manager.
